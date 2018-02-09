@@ -1,5 +1,6 @@
 
-from gym.envs.IARC.roombasim.pittras import PittRASDrone, render
+# from gym.envs.IARC.roombasim.pittras import PittRASDrone, render
+from gym.envs.IARC.roombasim.pittras import PittRASDrone
 from gym.envs.IARC.roombasim.pittras.ai import *
 from gym.envs.IARC.roombasim.pittras.state import *
 from gym.envs.IARC.roombasim.pittras.task import *
@@ -34,7 +35,12 @@ STATES = {
     'RoombaState': RoombaState
 }
 
-RENDER_AGENT = render.render_pittrasdrone
+#ben
+try:
+    from gym.envs.IARC.roombasim.pittras import render
+    RENDER_AGENT = render.render_pittrasdrone
+except:
+    RENDER_AGENT = None
 
 #
 # PITTRAS DRONE CONFIGURATION
