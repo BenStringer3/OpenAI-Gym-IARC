@@ -5,7 +5,7 @@ from gym import spaces
 import numpy as np
 
 from gym.envs.IARC.roombasim import environment
-from gym.envs.IARC.roombasim.graphics import Display
+# from gym.envs.IARC.roombasim.graphics import Display
 from gym.envs.IARC.roombasim import config as cfg
 import pyglet
 import queue
@@ -219,6 +219,7 @@ class IARCEnv_1(gym.Env):
             return
 
         if self.viewer is None:
+            from gym.envs.IARC.roombasim.graphics import Display
             # from gym.envs.classic_control import rendering
             self.viewer = Display(self.environment, timescale=1.0, self_update=False)
 
