@@ -1,7 +1,7 @@
 
 # from gym.envs.IARC.roombasim.pittras import PittRASDrone, render
 from gym.envs.IARC.roombasim.pittras import PittRASDrone
-# from gym.envs.IARC.roombasim.pittras.ai import *
+from gym.envs.IARC.roombasim.pittras.ai import *
 from gym.envs.IARC.roombasim.pittras.state import *
 from gym.envs.IARC.roombasim.pittras.task import *
 
