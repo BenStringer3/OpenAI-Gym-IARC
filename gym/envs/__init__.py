@@ -1,4 +1,19 @@
 from gym.envs.registration import registry, register, make, spec
+# IARC
+# ----------------------------------------
+register(
+    id='IARC_Game_Board-v0',
+    entry_point='gym.envs.IARC:IARCEnv_0',
+    max_episode_steps=200, #10 mins * 60 sec/min * 30 frames/sec
+    reward_threshold=21200.0, #12000 + 10*2000
+)
+
+register(
+    id='IARC_Game_Board-v1',
+    entry_point='gym.envs.IARC:IARCEnv_1',
+    max_episode_steps=6000, #10 mins * 60 sec/min * 10 frames/sec
+    reward_threshold=20000.0, #10*2000
+)
 
 # Algorithmic
 # ----------------------------------------
