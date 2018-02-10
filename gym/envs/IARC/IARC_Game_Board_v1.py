@@ -171,7 +171,7 @@ class IARCEnv_1(gym.Env):
 
         if (self.environment.bad_exits + self.environment.good_exits) >= cfg.MISSION_NUM_TARGETS:
             done = True
-        if self.environment.time_ms >= 0.5*60*1000:
+        if self.environment.time_ms >= 1.0*60*1000:
             # self.reset()
             done = True
 
