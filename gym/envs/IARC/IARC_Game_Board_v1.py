@@ -116,38 +116,49 @@ class IARCEnv_1(gym.Env):
 
     def _step(self, action):
         reward = 0
+
+        assert self.action_space.contains(action), "%r (%s) invalid" % (action, type(action))
+        ac = {"rmba_sel" : action[0], "ac_bool" : action[1], "top_or_front" : action[2]}
+
+        for rmba in self.environment.roombas:
+            if isinstance(rmba, environment.TargetRoomba) and rmba.state is not cfg.ROOMBA_STATE_IDLE:
+                reward += (rmba.state == cfg.ROOMBA_STATE_FORWARD) * (
+                        1 / math.pi / 30 * (math.fabs(math.pi - rmba.heading) - math.pi / 2)) / (
+                                  cfg.MISSION_NUM_TARGETS - (
+                                  self.environment.bad_exits + self.environment.good_exits))
+
         # action = (np.tanh(action) + 1) / 2 * (self.action_space.high - self.action_space.low) + self.action_space.low
         # # action[3] = np.round(action[3])
         # action[4] = np.round(action[4])
         # action[5] = np.round(action[5])
 
-        assert self.action_space.contains(action), "%r (%s) invalid" % (action, type(action))
-        ac = {"rmba_sel" : action[0], "ac_bool" : action[1], "top_or_front" : action[2]}
-        dist_dict = {"min_dist_all": None, "min_dist_ac" : None}
-        distances = [None] * (cfg.MISSION_NUM_TARGETS)  # - (self.environment.bad_exits + self.environment.good_exits))
-        i = 0
-        for rmba in self.environment.roombas:
-            if isinstance(rmba, environment.TargetRoomba):
-                if rmba.state is cfg.ROOMBA_STATE_IDLE:
-                    distances[i] = math.inf
-                else:
-                    reward += (rmba.state == cfg.ROOMBA_STATE_FORWARD) * (
-                                1 / math.pi / 30 * (math.fabs(math.pi - rmba.heading) - math.pi / 2)) / (
-                                          cfg.MISSION_NUM_TARGETS - (
-                                              self.environment.bad_exits + self.environment.good_exits))
-                    x_vel = np.cos(rmba.heading) * cfg.ROOMBA_LINEAR_SPEED * (rmba.state == cfg.ROOMBA_STATE_FORWARD)
-                    y_vel = np.sin(rmba.heading) * cfg.ROOMBA_LINEAR_SPEED * (rmba.state == cfg.ROOMBA_STATE_FORWARD)
-                    # distances[i] = np.sqrt(
-                    #     np.power(action[0] - rmba.pos[0], 2) +
-                    #     np.power(action[1] - rmba.pos[1], 2) +
-                    #     np.power(self.action_space.high[0] / self.action_space.high[2] * (action[2] - x_vel), 2) +
-                    #     np.power(self.action_space.high[0] / self.action_space.high[2] * (action[3] - y_vel), 2))
-                    # distances[i] = np.sqrt(
-                    #     np.power(action[0] - rmba.pos[0], 2) +
-                    #     np.power(action[1] - rmba.pos[1], 2) +
-                    #     np.power(self.action_space.high[0] / self.action_space.high[2] * (math.pi-math.fabs(math.fabs(action[2] - rmba.heading) - math.pi)), 2) +
-                    #     np.power(self.action_space.high[0] / self.action_space.high[2] * (np.round(action[3]) - (rmba.state == cfg.ROOMBA_STATE_FORWARD)), 2))
-                i += 1
+        # assert self.action_space.contains(action), "%r (%s) invalid" % (action, type(action))
+        # ac = {"rmba_sel" : action[0], "ac_bool" : action[1], "top_or_front" : action[2]}
+        # dist_dict = {"min_dist_all": None, "min_dist_ac" : None}
+        # distances = [None] * (cfg.MISSION_NUM_TARGETS)  # - (self.environment.bad_exits + self.environment.good_exits))
+        # i = 0
+        # for rmba in self.environment.roombas:
+        #     if isinstance(rmba, environment.TargetRoomba):
+        #         if rmba.state is cfg.ROOMBA_STATE_IDLE:
+        #             distances[i] = math.inf
+        #         else:
+        #             reward += (rmba.state == cfg.ROOMBA_STATE_FORWARD) * (
+        #                         1 / math.pi / 30 * (math.fabs(math.pi - rmba.heading) - math.pi / 2)) / (
+        #                                   cfg.MISSION_NUM_TARGETS - (
+        #                                       self.environment.bad_exits + self.environment.good_exits))
+        #             x_vel = np.cos(rmba.heading) * cfg.ROOMBA_LINEAR_SPEED * (rmba.state == cfg.ROOMBA_STATE_FORWARD)
+        #             y_vel = np.sin(rmba.heading) * cfg.ROOMBA_LINEAR_SPEED * (rmba.state == cfg.ROOMBA_STATE_FORWARD)
+        #             # distances[i] = np.sqrt(
+        #             #     np.power(action[0] - rmba.pos[0], 2) +
+        #             #     np.power(action[1] - rmba.pos[1], 2) +
+        #             #     np.power(self.action_space.high[0] / self.action_space.high[2] * (action[2] - x_vel), 2) +
+        #             #     np.power(self.action_space.high[0] / self.action_space.high[2] * (action[3] - y_vel), 2))
+        #             # distances[i] = np.sqrt(
+        #             #     np.power(action[0] - rmba.pos[0], 2) +
+        #             #     np.power(action[1] - rmba.pos[1], 2) +
+        #             #     np.power(self.action_space.high[0] / self.action_space.high[2] * (math.pi-math.fabs(math.fabs(action[2] - rmba.heading) - math.pi)), 2) +
+        #             #     np.power(self.action_space.high[0] / self.action_space.high[2] * (np.round(action[3]) - (rmba.state == cfg.ROOMBA_STATE_FORWARD)), 2))
+        #         i += 1
         # dist_dict["min_dist_all"] = min(distances)
         if ac["ac_bool"]:
             from operator import itemgetter
@@ -171,7 +182,7 @@ class IARCEnv_1(gym.Env):
 
         if (self.environment.bad_exits + self.environment.good_exits) >= cfg.MISSION_NUM_TARGETS:
             done = True
-        if self.environment.time_ms >= 1*60*1000:
+        if self.environment.time_ms >= 10*60*1000:
             # self.reset()
             done = True
 
@@ -190,7 +201,8 @@ class IARCEnv_1(gym.Env):
         #     if isinstance(rmba, environment.ObstacleRoomba):
         #         self.state = self.state + rmba.pos
 
-        return np.array(self.state), reward, done, dist_dict
+        info = {"time_ms": self.time_elapsed_ms}
+        return np.array(self.state), reward, done, info
 
 
     def _get_screen(self):
