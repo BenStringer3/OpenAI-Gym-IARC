@@ -118,8 +118,12 @@ class IARCEnv_1(gym.Env):
         reward = 0
 
         assert self.action_space.contains(action), "%r (%s) invalid" % (action, type(action))
-        ac = {"rmba_sel" : action[0], "ac_bool" : action[1], "top_or_front" : action[2]}
+        if action.ndim >= 2:
+            action = action[0]
+            ac = {"rmba_sel" : action[0], "ac_bool" : action[1], "top_or_front" : action[2]}
+        else:
 
+            ac = {"rmba_sel": action[0], "ac_bool": action[1], "top_or_front": action[2]}
         for rmba in self.environment.roombas:
             if isinstance(rmba, environment.TargetRoomba) and rmba.state is not cfg.ROOMBA_STATE_IDLE:
                 reward += (rmba.state == cfg.ROOMBA_STATE_FORWARD) * (
