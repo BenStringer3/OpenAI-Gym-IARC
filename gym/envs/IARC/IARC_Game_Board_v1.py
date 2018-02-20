@@ -29,6 +29,8 @@ class IARCEnv_1(gym.Env):
     def __init__(self):
         self.viewer = None
 
+        self.earlyTerminationTime_ms = None
+
         min_obs_template = list([0, 0, 0, False])
         max_obs_template  = list([20, 20, math.pi*2, True])
 
@@ -189,7 +191,8 @@ class IARCEnv_1(gym.Env):
         if self.environment.time_ms >= 10*60*1000:
             # self.reset()
             done = True
-
+        if self.earlyTerminationTime_ms is not None and self.earlyTerminationTime_ms <= self.environment.time_ms:
+            done = True
 
         # self.q.pop()
         # self.q.appendleft(self._get_screen())
