@@ -31,8 +31,8 @@ class IARCEnv_1(gym.Env):
 
         self.earlyTerminationTime_ms = None
 
-        min_obs_template = list([0, 0, 0, False])
-        max_obs_template  = list([20, 20, math.pi*2, True])
+
+
 
         # min_action = np.array([0.0, 0.0, 0.0, False, False, False])
         # max_action = np.array([20.0, 20.0, math.pi*2.0, True, True, True])
@@ -43,24 +43,30 @@ class IARCEnv_1(gym.Env):
         # self.action_space = spaces.MultiDiscrete([[0, cfg.MISSION_NUM_TARGETS - 1], [0, 1], [0, 1]])
         self.action_space = spaces.MultiDiscrete([cfg.MISSION_NUM_TARGETS, 2, 2])
 
-
-
         import gym.envs.IARC.roombasim.pittras.config
         cfg.load(gym.envs.IARC.roombasim.pittras.config)
 
         self.environment = environment.Environment()
         self.environment.reset()
 
+        # min_obs_template = np.array([0, 0, 0, False])
+        # max_obs_template  = np.array([20, 20, math.pi*2, True])
+        # min_obs = [min_obs_template]
+        # max_obs = [max_obs_template]
+        # for i in range(0, cfg.MISSION_NUM_TARGETS - 1): # (self.environment.roombas, start=1):
+        #     min_obs = np.concatenate([min_obs, [min_obs_template]], axis=0)
+        #     max_obs = np.concatenate([max_obs, [max_obs_template]], axis=0)
+        # min_obs = np.expand_dims(min_obs, 2)
+        # max_obs = np.expand_dims(max_obs, 2)
+
+        min_obs_template = list([0, 0, 0, False])
+        max_obs_template  = list([20, 20, math.pi*2, True])
         min_obs = list()
         max_obs = list()
-        for rmba in self.environment.roombas:
-            if isinstance(rmba, environment.TargetRoomba):
-                min_obs = min_obs + min_obs_template
-                max_obs = max_obs + max_obs_template
-        # for rmba in self.environment.roombas:
-        #     if isinstance(rmba, environment.ObstacleRoomba):
-        #         min_obs = min_obs + list([0, 0])
-        #         max_obs = max_obs + list([20, 20])
+        for i in range(0, cfg.MISSION_NUM_TARGETS): # (self.environment.roombas, start=1):
+            min_obs = min_obs + min_obs_template
+            max_obs = max_obs + max_obs_template
+
         self.observation_space = spaces.Box(np.asarray(min_obs), np.asarray(max_obs))
 
         # setup agent
@@ -89,16 +95,26 @@ class IARCEnv_1(gym.Env):
         # self.state = np.concatenate((self.q[0], self.q[self.q.maxlen - 1]), axis=1)
 
 
+        # self.state = np.zeros((cfg.MISSION_NUM_TARGETS, 4))
+        # i = 0
+        # for rmba in self.environment.roombas:
+        #     if isinstance(rmba, environment.TargetRoomba):
+        #         self.state[i, 0] = rmba.pos[0]
+        #         self.state[i, 1] = rmba.pos[1]
+        #         self.state[i, 2] = rmba.heading
+        #         self.state[i, 3] = (rmba.state == cfg.ROOMBA_STATE_FORWARD)
+        #         i = i + 1
+        # self.state = np.expand_dims(self.state, 2)
+
         self.state = list()
         for rmba in self.environment.roombas:
             if isinstance(rmba, environment.TargetRoomba):
                 self.state = self.state + rmba.pos
                 self.state = self.state + [rmba.heading]
                 self.state = self.state + [(rmba.state == cfg.ROOMBA_STATE_FORWARD)]
-        # for rmba in self.environment.roombas:
-        #     if isinstance(rmba, environment.ObstacleRoomba):
-        #         self.state = self.state + rmba.pos
-        return np.array(self.state)
+        self.state = np.asarray(self.state)
+
+        return self.state
 
     def _seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
