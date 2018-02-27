@@ -124,7 +124,7 @@ class Environment(object):
             # Check if the roomba has left the arena
             (has_left, reward) = Environment._check_bounds(rba)
             if has_left:
-                print('roomba left, reward: ' + str(reward))
+                # print('roomba left, reward: ' + str(reward))
                 if reward > 0:
                     self.good_exits += 1
                 else:
