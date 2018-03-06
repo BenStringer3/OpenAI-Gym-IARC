@@ -35,7 +35,7 @@ class IARCEnv_3(gym.Env):
         # self.action_space = spaces.Dict({"aav_pos" : spaces.Box(0, 20, (2,)), "exec" : spaces.MultiBinary(2)})
         # self.action_space = spaces.MultiDiscrete([cfg.MISSION_NUM_TARGETS, 2, 2])
         # self.action_space = spaces.Tuple((spaces.MultiBinary(2), spaces.Box([0.0, 0.0], [20.0, 20.0])))
-        self.action_space = spaces.Box(np.array([0.0, 0.0, False, False]), np.array([20.0, 20.0, True, True]))
+        self.action_space = spaces.Box(np.array([0.0, 0.0, 0., 0.]), np.array([1., 1., 1., 1.]))
 
         import gym.envs.IARC.roombasim.pittras.config
         cfg.load(gym.envs.IARC.roombasim.pittras.config)
@@ -75,16 +75,7 @@ class IARCEnv_3(gym.Env):
         self.environment.agent = agent
         self.environment.agent.z_pos = 2
 
-        # self.state = np.zeros((cfg.MISSION_NUM_TARGETS, 4))
-        # i = 0
-        # for rmba in self.environment.roombas:
-        #     if isinstance(rmba, environment.TargetRoomba):
-        #         self.state[i, 0] = rmba.pos[0]
-        #         self.state[i, 1] = rmba.pos[1]
-        #         self.state[i, 2] = rmba.heading
-        #         self.state[i, 3] = (rmba.state == cfg.ROOMBA_STATE_FORWARD)
-        #         i = i + 1
-        # self.state = np.expand_dims(self.state, 2)
+
         self.last_rmba = 4
         self.last_converge = True
         self.state = list()
@@ -103,17 +94,17 @@ class IARCEnv_3(gym.Env):
         return [seed]
 
     def _step(self, action):
-        reward = 0
+        rews = dict()
         converge = False
 
         if action.ndim >= 2:
             action = action[0]
             action = np.clip(action, self.action_space.low, self.action_space.high)
-            ac = {"aav_pos": action[0:2], "ac_bool": bool(np.round(action[2])),
+            ac = {"aav_pos": action[0:2]*20.0, "ac_bool": bool(np.round(action[2])),
                   "top_or_front": bool(np.round(action[3]))}
         else:
             action = np.clip(action, self.action_space.low, self.action_space.high)
-            ac = {"aav_pos": action[0:2], "ac_bool": bool(np.round(action[2])),
+            ac = {"aav_pos": action[0:2]*20.0, "ac_bool": bool(np.round(action[2])),
                   "top_or_front": bool(np.round(action[3]))}
         # aav_targPos = self.environment.roombas[ac["rmba_sel"]].pos
         assert self.action_space.contains(action), "%r (%s) invalid" % (action, type(action))
@@ -124,12 +115,12 @@ class IARCEnv_3(gym.Env):
                 rmba_dists[(np.linalg.norm(ac["aav_pos"] - rmba.pos))] = rmba
 
                 # reward for moving in right direction
-                reward += (rmba.state == cfg.ROOMBA_STATE_FORWARD) * (
+                rews["direction"] = ((rmba.state == cfg.ROOMBA_STATE_FORWARD) * (
                         1 / math.pi / 30 * (math.fabs(math.pi - rmba.heading) - math.pi / 2)) / (
                                   cfg.MISSION_NUM_TARGETS - (
-                                  self.environment.bad_exits + self.environment.good_exits))
+                                  self.environment.bad_exits + self.environment.good_exits)))
         # reward for targeting rmba
-        reward -= 0.00001 * np.power(np.min(list(rmba_dists.keys())), 2)
+        rews["targ"] = - 0.00001 * np.power(np.min(list(rmba_dists.keys())), 2)
         # ac["aav_pos"] = np.array([20.0, 0.0])
         dist2targ = np.linalg.norm(self.environment.agent.xy_pos - ac["aav_pos"])
         if dist2targ <= 0.35:
@@ -164,7 +155,7 @@ class IARCEnv_3(gym.Env):
         done = False
         self.time_elapsed_ms += 100
         self.environment.update(0.1, self.time_elapsed_ms)
-        reward += self.environment.score / 1000 - self.prev_score
+        rews["game"] = self.environment.score / 1000 - self.prev_score
         self.prev_score = self.environment.score / 1000
         # self.environment.agent.control(np.array([0.5, 0.5]), 0.001, 0.01)
 
@@ -178,7 +169,7 @@ class IARCEnv_3(gym.Env):
 
         if (self.environment.bad_exits + self.environment.good_exits) >= cfg.MISSION_NUM_TARGETS:
             done = True
-            reward += 11 * (
+            rews["end"] += 11 * (
                         10 * 60 * 1000 - self.environment.time_ms) / 1000 / 60 / 10 * self.environment.good_exits / cfg.MISSION_NUM_TARGETS
         if self.environment.time_ms >= 10 * 60 * 1000:
             # self.reset()
@@ -201,7 +192,10 @@ class IARCEnv_3(gym.Env):
         #     if isinstance(rmba, environment.ObstacleRoomba):
         #         self.state = self.state + rmba.pos
 
-        info = {"time_ms": self.time_elapsed_ms, "converge": converge}
+        info = {"time_ms": self.time_elapsed_ms, "converge": converge, "rews": rews}
+        reward = 0
+        for key, rew in rews.items():
+            reward += rew
         return np.array(self.state), reward, done, info
 
     def _get_screen(self):
