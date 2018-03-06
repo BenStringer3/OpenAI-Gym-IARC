@@ -64,6 +64,7 @@ class FrozenLakeEnv(discrete.DiscreteEnv):
             desc = MAPS[map_name]
         self.desc = desc = np.asarray(desc,dtype='c')
         self.nrow, self.ncol = nrow, ncol = desc.shape
+        self.reward_range = (0, 1)
 
         nA = 4
         nS = nrow * ncol
@@ -75,6 +76,7 @@ class FrozenLakeEnv(discrete.DiscreteEnv):
 
         def to_s(row, col):
             return row*ncol + col
+        
         def inc(row, col, a):
             if a==0: # left
                 col = max(col-1,0)

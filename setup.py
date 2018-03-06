@@ -11,6 +11,7 @@ extras = {
   'box2d': ['Box2D-kengz'],
   'classic_control': ['PyOpenGL'],
   'mujoco': ['mujoco_py>=1.50', 'imageio'],
+  'robotics': ['mujoco_py>=1.50', 'imageio'],
 }
 
 # Meta dependency groups.
@@ -33,6 +34,15 @@ setup(name='gym',
           'numpy>=1.10.4', 'requests>=2.0', 'six', 'pyglet>=1.2.0',
       ],
       extras_require=extras,
-      package_data={'gym': ['envs/mujoco/assets/*.xml', 'envs/classic_control/assets/*.png']},
+      package_data={'gym': [
+        'envs/mujoco/assets/*.xml',
+        'envs/classic_control/assets/*.png',
+        'envs/robotics/assets/LICENSE.md',
+        'envs/robotics/assets/fetch/*.xml',
+        'envs/robotics/assets/hand/*.xml',
+        'envs/robotics/assets/stls/fetch/*.stl',
+        'envs/robotics/assets/stls/hand/*.stl',
+        'envs/robotics/assets/textures/*.png']
+      },
       tests_require=['pytest', 'mock'],
 )
