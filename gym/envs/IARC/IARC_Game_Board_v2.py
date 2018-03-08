@@ -70,7 +70,7 @@ class IARCEnv_2(gym.Env):
 
         self.environment.agent = agent
         import time
-        self._seed(round(time.time()))
+        # self._seed(round(time.time()))
         self._reset()
 
     def _reset(self):
