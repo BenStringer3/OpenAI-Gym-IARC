@@ -114,7 +114,7 @@ class IARCEnv_2(gym.Env):
 
 
     def _step(self, action):
-        rews = dict()
+        rews = {'game': 0.0, 'selection': 0.0, 'end' : 0.0, 'direction': 0.0}
         converge = False
 
         # assert self.action_space.contains(action), "%r (%s) invalid" % (action, type(action))
@@ -128,7 +128,7 @@ class IARCEnv_2(gym.Env):
         for rmba in self.environment.roombas:
             if isinstance(rmba, environment.TargetRoomba) and rmba.state is not cfg.ROOMBA_STATE_IDLE:
                 rews["direction"] = (rmba.state == cfg.ROOMBA_STATE_FORWARD) * (
-                        1 / math.pi / 30 * (math.fabs(math.pi - rmba.heading) - math.pi / 2)) / (
+                        1 / math.pi / 3 * (math.fabs(math.pi - rmba.heading) - math.pi / 2)) / (
                                   cfg.MISSION_NUM_TARGETS - (
                                   self.environment.bad_exits + self.environment.good_exits))
 
@@ -163,22 +163,21 @@ class IARCEnv_2(gym.Env):
         done = False
         self.time_elapsed_ms += 100
         self.environment.update(0.1, self.time_elapsed_ms)
-        rews["game"] = self.environment.score/1000 - self.prev_score
-        self.prev_score = self.environment.score/1000
+        rews["game"] += self.environment.score/100 - self.prev_score
+        self.prev_score = self.environment.score/100
         # self.environment.agent.control(np.array([0.5, 0.5]), 0.001, 0.01)
 
-        rews["selection"] = 0
         if action[0] != self.last_rmba and not self.last_converge:
-            rews["selection"] -= 0.002
+            rews["selection"] -= 0.00002
         if action[0] == self.last_rmba and self.last_converge:
-            rews["selection"] -= 0.002
+            rews["selection"] -= 0.00002
 
         self.last_rmba = action[0]
         self.last_converge = converge
 
         if (self.environment.bad_exits + self.environment.good_exits) >= cfg.MISSION_NUM_TARGETS:
             done = True
-            rews["end"] = 11 * (10*60*1000 - self.environment.time_ms)/1000/60/10*self.environment.good_exits/cfg.MISSION_NUM_TARGETS
+            rews["end"] += 11 * (10*60*1000 - self.environment.time_ms)/1000/60/10*self.environment.good_exits/cfg.MISSION_NUM_TARGETS
         if self.environment.time_ms >= 10*60*1000:
             # self.reset()
             done = True
