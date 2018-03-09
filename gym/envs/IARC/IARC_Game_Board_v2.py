@@ -30,6 +30,7 @@ class IARCEnv_2(gym.Env):
         self.viewer = None
 
         self.earlyTerminationTime_ms = None
+        self.render_bool = False
 
         # self.action_space = spaces.Dict({"aav_pos" : spaces.Box(np.array([0, 0]), np.array([20, 20])), "exec" : spaces.MultiDiscrete([2, 2])})
         # self.action_space = spaces.Dict({"aav_pos" : spaces.Box(0, 20, (2,)), "exec" : spaces.MultiBinary(2)})
@@ -114,8 +115,8 @@ class IARCEnv_2(gym.Env):
 
 
     def _step(self, action):
-        rews = {'game': 0.0, 'selection': 0.0, 'end' : 0.0, 'direction': 0.0}
-        converge = False
+        rews = {'game': 0.0, 'end' : 0.0, 'direction': 0.0}
+        # converge = False
 
         # assert self.action_space.contains(action), "%r (%s) invalid" % (action, type(action))
         if action.ndim >= 2:
@@ -131,50 +132,47 @@ class IARCEnv_2(gym.Env):
                         1 / math.pi / 3 * (math.fabs(math.pi - rmba.heading) - math.pi / 2)) / (
                                   cfg.MISSION_NUM_TARGETS - (
                                   self.environment.bad_exits + self.environment.good_exits))
+        for i in range(10):
+            # ac["aav_pos"] = np.array([20.0, 0.0])
+            dist2targ = np.linalg.norm(self.environment.agent.xy_pos - aav_targPos)
+            if  dist2targ <= 0.35:
 
-        # ac["aav_pos"] = np.array([20.0, 0.0])
-        dist2targ = np.linalg.norm(self.environment.agent.xy_pos - aav_targPos)
-        if  dist2targ <= 0.35:
+                self.environment.agent.xy_vel = np.array([0.0, 0.0])
+                # rmba_dists = []
+                # for i, rmba in enumerate(self.environment.roombas):
+                #     if isinstance(rmba, environment.TargetRoomba) and rmba.state is not cfg.ROOMBA_STATE_IDLE:
+                #         rmba_dists.append(np.linalg.norm(rmba.pos - ac["aav_pos"]))
 
-            self.environment.agent.xy_vel = np.array([0.0, 0.0])
-            # rmba_dists = []
-            # for i, rmba in enumerate(self.environment.roombas):
-            #     if isinstance(rmba, environment.TargetRoomba) and rmba.state is not cfg.ROOMBA_STATE_IDLE:
-            #         rmba_dists.append(np.linalg.norm(rmba.pos - ac["aav_pos"]))
+                if ac["ac_bool"]:
+                    # converge = True
+                    # print("hit a roomba")
+                    if ac["top_or_front"]:
+                        self.environment.roombas[ac["rmba_sel"]].collisions['top'] = True
+                    else:
+                        self.environment.roombas[ac["rmba_sel"]].collisions['front'] = True
+            else:
+                ang = math.atan2(aav_targPos[1] - self.environment.agent.xy_pos[1], aav_targPos[0] - self.environment.agent.xy_pos[0])
+                self.environment.agent.xy_vel = np.array([cfg.DRONE_MAX_HORIZ_VELOCITY*np.cos(ang), cfg.DRONE_MAX_HORIZ_VELOCITY*np.sin(ang)])
 
-            if ac["ac_bool"]:
-                converge = True
-                # print("hit a roomba")
-                if ac["top_or_front"]:
-                    self.environment.roombas[ac["rmba_sel"]].collisions['top'] = True
-                else:
-                    self.environment.roombas[ac["rmba_sel"]].collisions['front'] = True
-        else:
-            ang = math.atan2(aav_targPos[1] - self.environment.agent.xy_pos[1], aav_targPos[0] - self.environment.agent.xy_pos[0])
-            self.environment.agent.xy_vel = np.array([cfg.DRONE_MAX_HORIZ_VELOCITY*np.cos(ang), cfg.DRONE_MAX_HORIZ_VELOCITY*np.sin(ang)])
-        # if ac["ac_bool"]:
-        #     self.environment.agent.xy_pos = self.environment.roombas[ac["rmba_sel"]].pos
-        #     self.environment.agent.z_pos = 2
-        #     if ac["top_or_front"]:
-        #         self.environment.roombas[ac["rmba_sel"]].collisions['top'] = True
-        #     else:
-        #         self.environment.roombas[ac["rmba_sel"]].collisions['front'] = True
 
-        done = False
-        self.time_elapsed_ms += 100
-        self.environment.update(0.1, self.time_elapsed_ms)
+
+            self.time_elapsed_ms += 100
+            self.environment.update(0.1, self.time_elapsed_ms)
+            if self.render_bool:
+                self._render()
         rews["game"] += self.environment.score/100 - self.prev_score
         self.prev_score = self.environment.score/100
         # self.environment.agent.control(np.array([0.5, 0.5]), 0.001, 0.01)
 
-        if action[0] != self.last_rmba and not self.last_converge:
-            rews["selection"] -= 0.00002
-        if action[0] == self.last_rmba and self.last_converge:
-            rews["selection"] -= 0.00002
+        # if action[0] != self.last_rmba and not self.last_converge:
+        #     rews["selection"] -= 0.00002
+        # if action[0] == self.last_rmba and self.last_converge:
+        #     rews["selection"] -= 0.00002
 
-        self.last_rmba = action[0]
-        self.last_converge = converge
+        # self.last_rmba = action[0]
+        # self.last_converge = converge
 
+        done = False
         if (self.environment.bad_exits + self.environment.good_exits) >= cfg.MISSION_NUM_TARGETS:
             done = True
             rews["end"] += 11 * (10*60*1000 - self.environment.time_ms)/1000/60/10*self.environment.good_exits/cfg.MISSION_NUM_TARGETS
@@ -184,10 +182,6 @@ class IARCEnv_2(gym.Env):
         if self.earlyTerminationTime_ms is not None and self.earlyTerminationTime_ms <= self.environment.time_ms:
             done = True
 
-        # self.q.pop()
-        # self.q.appendleft(self._get_screen())
-        # self.state = np.concatenate((self.q[0], self.q[self.q.maxlen - 1]), axis=1)
-
         self.state = list()
         for rmba in self.environment.roombas:
             if isinstance(rmba, environment.TargetRoomba):
@@ -195,11 +189,8 @@ class IARCEnv_2(gym.Env):
                 self.state = self.state + [rmba.heading]
                 self.state = self.state + [(rmba.state == cfg.ROOMBA_STATE_FORWARD)]
         self.state = self.state + list(self.environment.agent.xy_pos) +list([self.last_rmba])
-        # for rmba in self.environment.roombas:
-        #     if isinstance(rmba, environment.ObstacleRoomba):
-        #         self.state = self.state + rmba.pos
 
-        info = {"time_ms": self.time_elapsed_ms, "converge": converge, "rews": rews}
+        info = {"time_ms": self.time_elapsed_ms, "rews": rews}
         reward = 0
         for key, rew in rews.items():
             reward += rew
