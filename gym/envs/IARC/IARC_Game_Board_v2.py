@@ -32,8 +32,6 @@ class IARCEnv_2(gym.Env):
         self.earlyTerminationTime_ms = None
         self.render_bool = False
 
-        # self.action_space = spaces.Dict({"aav_pos" : spaces.Box(np.array([0, 0]), np.array([20, 20])), "exec" : spaces.MultiDiscrete([2, 2])})
-        # self.action_space = spaces.Dict({"aav_pos" : spaces.Box(0, 20, (2,)), "exec" : spaces.MultiBinary(2)})
         self.action_space = spaces.MultiDiscrete([cfg.MISSION_NUM_TARGETS, 2, 2])
 
 
@@ -42,16 +40,6 @@ class IARCEnv_2(gym.Env):
 
         self.environment = environment.Environment()
         self.environment.reset()
-
-        # min_obs_template = np.array([0, 0, 0, False])
-        # max_obs_template  = np.array([20, 20, math.pi*2, True])
-        # min_obs = [min_obs_template]
-        # max_obs = [max_obs_template]
-        # for i in range(0, cfg.MISSION_NUM_TARGETS - 1): # (self.environment.roombas, start=1):
-        #     min_obs = np.concatenate([min_obs, [min_obs_template]], axis=0)
-        #     max_obs = np.concatenate([max_obs, [max_obs_template]], axis=0)
-        # min_obs = np.expand_dims(min_obs, 2)
-        # max_obs = np.expand_dims(max_obs, 2)
 
         min_obs_template = list([0, 0, 0, False])
         max_obs_template  = list([20, 20, math.pi*2, True])
@@ -63,18 +51,17 @@ class IARCEnv_2(gym.Env):
 
         min_obs  = min_obs + list([0, 0, 0])
         max_obs = max_obs + list([20, 20, cfg.MISSION_NUM_TARGETS - 1])
+        self.last_rmba = 4
 
-        self.observation_space = spaces.Box(np.asarray(min_obs), np.asarray(max_obs))
+        self.observation_space = spaces.Box(np.asarray(min_obs), np.asarray(max_obs), dtype=np.float32)
 
         # setup agent
         agent = cfg.AGENT([13, 10], 0)
-
         self.environment.agent = agent
-        import time
-        # self._seed(round(time.time()))
-        self._reset()
 
-    def _reset(self):
+        self.reset()
+
+    def reset(self):
         self.time_elapsed_ms = 0
         self.prev_score = 0
         self.environment.reset()
@@ -85,19 +72,6 @@ class IARCEnv_2(gym.Env):
         self.environment.agent = agent
         self.environment.agent.z_pos = 2
 
-
-        # self.state = np.zeros((cfg.MISSION_NUM_TARGETS, 4))
-        # i = 0
-        # for rmba in self.environment.roombas:
-        #     if isinstance(rmba, environment.TargetRoomba):
-        #         self.state[i, 0] = rmba.pos[0]
-        #         self.state[i, 1] = rmba.pos[1]
-        #         self.state[i, 2] = rmba.heading
-        #         self.state[i, 3] = (rmba.state == cfg.ROOMBA_STATE_FORWARD)
-        #         i = i + 1
-        # self.state = np.expand_dims(self.state, 2)
-        self.last_rmba = 4
-        self.last_converge = True
         self.state = list()
         for rmba in self.environment.roombas:
             if isinstance(rmba, environment.TargetRoomba):
@@ -109,14 +83,13 @@ class IARCEnv_2(gym.Env):
 
         return self.state
 
-    def _seed(self, seed=None):
+    def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
 
-    def _step(self, action):
+    def step(self, action):
         rews = {'game': 0.0, 'end' : 0.0, 'direction': 0.0}
-        # converge = False
 
         # assert self.action_space.contains(action), "%r (%s) invalid" % (action, type(action))
         if action.ndim >= 2:
@@ -132,17 +105,12 @@ class IARCEnv_2(gym.Env):
                         1 / math.pi / 3 * (math.fabs(math.pi - rmba.heading) - math.pi / 2)) / (
                                   cfg.MISSION_NUM_TARGETS - (
                                   self.environment.bad_exits + self.environment.good_exits))
+        break_early = False
         for i in range(10):
             # ac["aav_pos"] = np.array([20.0, 0.0])
             dist2targ = np.linalg.norm(self.environment.agent.xy_pos - aav_targPos)
             if  dist2targ <= 0.35:
-
                 self.environment.agent.xy_vel = np.array([0.0, 0.0])
-                # rmba_dists = []
-                # for i, rmba in enumerate(self.environment.roombas):
-                #     if isinstance(rmba, environment.TargetRoomba) and rmba.state is not cfg.ROOMBA_STATE_IDLE:
-                #         rmba_dists.append(np.linalg.norm(rmba.pos - ac["aav_pos"]))
-
                 if ac["ac_bool"]:
                     # converge = True
                     # print("hit a roomba")
@@ -150,16 +118,17 @@ class IARCEnv_2(gym.Env):
                         self.environment.roombas[ac["rmba_sel"]].collisions['top'] = True
                     else:
                         self.environment.roombas[ac["rmba_sel"]].collisions['front'] = True
+                    break_early = True
             else:
                 ang = math.atan2(aav_targPos[1] - self.environment.agent.xy_pos[1], aav_targPos[0] - self.environment.agent.xy_pos[0])
                 self.environment.agent.xy_vel = np.array([cfg.DRONE_MAX_HORIZ_VELOCITY*np.cos(ang), cfg.DRONE_MAX_HORIZ_VELOCITY*np.sin(ang)])
-
-
 
             self.time_elapsed_ms += 100
             self.environment.update(0.1, self.time_elapsed_ms)
             if self.render_bool:
                 self._render()
+            # if break_early:
+            #     continue
         rews["game"] += self.environment.score/100 - self.prev_score
         self.prev_score = self.environment.score/100
         # self.environment.agent.control(np.array([0.5, 0.5]), 0.001, 0.01)
