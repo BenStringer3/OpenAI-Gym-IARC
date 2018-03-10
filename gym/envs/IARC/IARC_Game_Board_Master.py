@@ -39,6 +39,7 @@ class IARCEnv_Master(object):
 
     def _updateEnv(self, aav_targPos, actionFn):
         # break_early = False
+        end_rew=0
         for i in range(10):
             dist2targ = np.linalg.norm(self.environment.agent.xy_pos - aav_targPos)
             if  dist2targ <= 0.35:

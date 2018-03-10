@@ -63,11 +63,11 @@ class IARCEnv_3(gym.Env, IARCEnv_Master):
 
         return self.state
 
-    def _seed(self, seed=None):
+    def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
-    def _step(self, action):
+    def step(self, action):
         rews = {'game': 0.0, 'end': 0.0, 'direction': 0.0}
         converge = False
 
@@ -89,7 +89,7 @@ class IARCEnv_3(gym.Env, IARCEnv_Master):
                 rmba_dists[(np.linalg.norm(ac["aav_pos"] - rmba.pos))] = rmba
 
                 # reward for moving in right direction
-                rews["direction"] = self.getDirectionRew(rmba)
+                rews["direction"] += self.getDirectionRew(rmba)
         # reward for targeting rmba
         rews["targ"] = - 0.00001 * np.power(np.min(list(rmba_dists.keys())), 2)
 
