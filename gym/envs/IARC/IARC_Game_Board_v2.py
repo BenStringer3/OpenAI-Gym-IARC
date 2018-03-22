@@ -14,10 +14,7 @@ from matplotlib import pyplot as plt
 import skimage.measure
 from collections import deque
 import tensorflow as tf
-# import roomba
-
-NUM_OF_ACTIONS = 5
-
+# from Redbird_AI.modelEnv import ModelEnv
 
 
 class IARCEnv_2(gym.Env):
@@ -27,6 +24,10 @@ class IARCEnv_2(gym.Env):
     }
 
     def __init__(self):
+
+
+
+
         self.viewer = None
 
         self.earlyTerminationTime_ms = None
@@ -61,6 +62,26 @@ class IARCEnv_2(gym.Env):
 
         self.reset()
 
+        #TODO remove temporary test stuf
+        self.test_set = False
+        self.test_set2 = False
+        arr = np.zeros([32, 32, 1], dtype=np.uint8)
+        arr[5, 5, :] = 64
+        arr[6, 31, :] = 64
+        arr[31, 23, :] = 64
+        arr[10, 9, :] = 64
+        arr[0, 21, :] = 64
+        arr[5, 15, :] = 64
+        arr[9, 9, :] = 64
+        arr[5, 16, :] = 64
+        arr[15, 27, :] = 64
+        arr[30, 9, :] = 64
+        self.test_img = arr
+        self.test_img2 = arr
+        self.test_ob = self.observation_space.sample()
+        self.test_ob2 = self.test_ob
+        # self.modelEnv = ModelEnv(self.observation_space, gym.spaces.Box(0, 255, [64, 64])) # TODO remove shape hardcode
+
     def reset(self):
         self.time_elapsed_ms = 0
         self.prev_score = 0
@@ -81,15 +102,17 @@ class IARCEnv_2(gym.Env):
         self.state = self.state + list(self.environment.agent.xy_pos) + list([self.last_rmba])
         self.state = np.asarray(self.state)
 
+
         return self.state
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
+        # self.modelEnv.seed(self.np_random)
         return [seed]
 
 
     def step(self, action):
-        rews = {'game': 0.0, 'end' : 0.0, 'direction': 0.0}
+        rews = {'game_reward': 0.0, 'speed_reward' : 0.0, 'direction_reward': 0.0}
 
         # assert self.action_space.contains(action), "%r (%s) invalid" % (action, type(action))
         if action.ndim >= 2:
@@ -101,7 +124,7 @@ class IARCEnv_2(gym.Env):
 
         for rmba in self.environment.roombas:
             if isinstance(rmba, environment.TargetRoomba) and rmba.state is not cfg.ROOMBA_STATE_IDLE:
-                rews["direction"] = (rmba.state == cfg.ROOMBA_STATE_FORWARD) * (
+                rews["direction_reward"] = (rmba.state == cfg.ROOMBA_STATE_FORWARD) * (
                         1 / math.pi / 3 * (math.fabs(math.pi - rmba.heading) - math.pi / 2)) / (
                                   cfg.MISSION_NUM_TARGETS - (
                                   self.environment.bad_exits + self.environment.good_exits))
@@ -129,22 +152,15 @@ class IARCEnv_2(gym.Env):
                 self._render()
             # if break_early:
             #     continue
-        rews["game"] += self.environment.score/100 - self.prev_score
+        rews["game_reward"] += self.environment.score/100 - self.prev_score
         self.prev_score = self.environment.score/100
-        # self.environment.agent.control(np.array([0.5, 0.5]), 0.001, 0.01)
+        rews["speed_reward"] += rews["game_reward"] * 0.1*(10*60*1000 - self.environment.time_ms)/1000/60/10
 
-        # if action[0] != self.last_rmba and not self.last_converge:
-        #     rews["selection"] -= 0.00002
-        # if action[0] == self.last_rmba and self.last_converge:
-        #     rews["selection"] -= 0.00002
-
-        # self.last_rmba = action[0]
-        # self.last_converge = converge
 
         done = False
         if (self.environment.bad_exits + self.environment.good_exits) >= cfg.MISSION_NUM_TARGETS:
             done = True
-            rews["end"] += 11 * (10*60*1000 - self.environment.time_ms)/1000/60/10*self.environment.good_exits/cfg.MISSION_NUM_TARGETS
+            # rews["end_reward"] += 11 * (10*60*1000 - self.environment.time_ms)/1000/60/10*self.environment.good_exits/cfg.MISSION_NUM_TARGETS
         if self.environment.time_ms >= 10*60*1000:
             # self.reset()
             done = True
@@ -159,14 +175,36 @@ class IARCEnv_2(gym.Env):
                 self.state = self.state + [(rmba.state == cfg.ROOMBA_STATE_FORWARD)]
         self.state = self.state + list(self.environment.agent.xy_pos) +list([self.last_rmba])
 
-        info = {"time_ms": self.time_elapsed_ms, "rews": rews}
+        # img_true = self.get_screen()
+        # self.modelEnv.step2(np.array(self.state), img_true)
+        if self.environment.time_ms == 25000 and self.test_set is False:
+            self.test_ob = np.array(self.state)
+            self.test_img = self.get_screen2()
+            self.test_set = True
+        if self.environment.time_ms == 45000 and self.test_set2 is False:
+            self.test_ob2 = np.array(self.state)
+            self.test_img2 = self.get_screen2()
+            self.test_set2 = True
+        if np.random.random_integers(1, 5) % 2 == 0:
+            test_ob = self.test_ob
+            test_img = self.test_img
+        else:
+            test_ob = self.test_ob2
+            test_img = self.test_img2
+
+        info = {"time_ms": self.time_elapsed_ms, "rews": rews, "img": self.get_screen2(), "test_ob": test_ob}
         reward = 0
         for key, rew in rews.items():
             reward += rew
         return np.array(self.state), reward, done, info
 
 
-    def _get_screen(self):
+    def get_screen(self):
+        if self.viewer is None:
+            from gym.envs.IARC.roombasim.graphics import Display
+            # from gym.envs.classic_control import rendering
+            self.viewer = Display(self.environment, timescale=1.0, self_update=False)
+            pyglet.app.event_loop.start()
         self.viewer.on_draw_roombas_only()
         buffer = pyglet.image.get_buffer_manager().get_color_buffer()
         image_data = buffer.get_image_data()
@@ -174,15 +212,62 @@ class IARCEnv_2(gym.Env):
         arr = arr.reshape(buffer.height, buffer.width, 4)
         arr = arr[::-1, :, 0:3]
         arr1 = np.zeros([170,170,3], dtype=np.uint8)
-        arr1[::,::,0] = skimage.measure.block_reduce(arr[::,::,0], (4,4), np.max)
+        arr1[::, ::, 0] = skimage.measure.block_reduce(arr[::,::,0], (4,4), np.max)
         arr1[::, ::, 1] = skimage.measure.block_reduce(arr[::, ::, 1], (4, 4), np.max)
         arr1[::, ::, 2] = skimage.measure.block_reduce(arr[::, ::, 2], (4, 4), np.max)
 
         # from matplotlib import pyplot as plt
         # plt.ion()
-        # plt.imshow(arr1)
+        # plt.imshow(arr1/64.0)
         # plt.show()
-        return arr1
+
+        # from PIL import Image
+        # img = Image.fromarray(arr, 'RGB')
+        # img.save('my.png')
+        # img.show()
+        return arr
+
+    def get_screen2(self):
+        img_size = 32 #TODO remove hardcode
+        arr = np.zeros([img_size, img_size, 1], dtype=np.uint8)
+        for rmba in self.environment.roombas:
+            if isinstance(rmba, environment.TargetRoomba) and rmba.state is not cfg.ROOMBA_STATE_IDLE:
+                arr[int(rmba.pos[0]/20.0*(img_size - 1)), int(rmba.pos[1]/20.0*(img_size - 1)), :] = 64
+        return arr
+
+    def get_example_img(self):
+        img_size = 32 #TODO remove hardcode
+        self.get_example_img.counter += 1
+        if self.get_example_img.counter >= 25:
+            arr = self.get_screen()
+
+        else:
+            arr = np.zeros([img_size, img_size, 1], dtype=np.uint8)
+            arr[5, 5, :] = 64
+            arr[6, 31, :] = 64
+            arr[31, 23, :] = 64
+            arr[10, 9, :] = 64
+            arr[0, 21, :] = 64
+            arr[5, 15, :] = 64
+            arr[9, 9, :] = 64
+            arr[5, 16, :] = 64
+            arr[15, 27, :] = 64
+            arr[30, 9, :] = 64
+        #
+        # arr1 = np.zeros([img_size, img_size, 1], dtype=np.uint8)
+        # arr1[7, 5, :] = 64
+        # arr1[6, 10, :] = 64
+        # arr1[15, 23, :] = 64
+        # arr1[10, 30, :] = 64
+        # arr1[10, 21, :] = 64
+        # arr1[5, 17, :] = 64
+        # arr1[25, 9, :] = 64
+        # arr1[5, 7, :] = 64
+        # arr1[5, 27, :] = 64
+        # arr1[30, 3, :] = 64
+
+        return arr
+    get_example_img.counter = 0
 
     def _render(self, mode='human', close=False):
         if close:
