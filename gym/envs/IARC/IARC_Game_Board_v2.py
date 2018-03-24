@@ -55,6 +55,7 @@ class IARCEnv_2(gym.Env):
         self.last_rmba = 4
 
         self.observation_space = spaces.Box(np.asarray(min_obs), np.asarray(max_obs), dtype=np.float32)
+        self.observation_space = spaces.Tuple(spaces.Box(np.array([0, 0, 0, False]), np.array([20, 20, math.pi*2, True]), dtype=np.float32))
 
         # setup agent
         agent = cfg.AGENT([13, 10], 0)
@@ -62,24 +63,27 @@ class IARCEnv_2(gym.Env):
 
         self.reset()
 
+        self.num_test_imgs = 3
+        self.numTestsActivated = 0
         #TODO remove temporary test stuf
-        self.test_set = False
-        self.test_set2 = False
-        arr = np.zeros([32, 32, 1], dtype=np.uint8)
-        arr[5, 5, :] = 64
-        arr[6, 31, :] = 64
-        arr[31, 23, :] = 64
-        arr[10, 9, :] = 64
-        arr[0, 21, :] = 64
-        arr[5, 15, :] = 64
-        arr[9, 9, :] = 64
-        arr[5, 16, :] = 64
-        arr[15, 27, :] = 64
-        arr[30, 9, :] = 64
-        self.test_img = arr
-        self.test_img2 = arr
-        self.test_ob = self.observation_space.sample()
-        self.test_ob2 = self.test_ob
+        self.test_set = [False] * self.num_test_imgs
+        self.arr = np.zeros([32, 32, 1], dtype=np.uint8)
+        self.arr[5, 5, :] = 255
+        self.arr[6, 31, :] = 255
+        self.arr[31, 23, :] = 255
+        self.arr[10, 9, :] = 255
+        self.arr[0, 21, :] = 255
+        self.arr[5, 15, :] = 255
+        self.arr[9, 9, :] = 255
+        self.arr[5, 16, :] = 255
+        self.arr[15, 27, :] = 255
+        self.arr[30, 9, :] = 255
+        self.test_img = [self.arr]*self.num_test_imgs
+        self.test_img_triggerTime = [0.0]*self.num_test_imgs
+        self.test_ob = [self.observation_space.sample()] * self.num_test_imgs
+        for i  in range(self.num_test_imgs):
+            self.test_img_triggerTime[i] = 1000 + i*4000
+
         # self.modelEnv = ModelEnv(self.observation_space, gym.spaces.Box(0, 255, [64, 64])) # TODO remove shape hardcode
 
     def reset(self):
@@ -101,13 +105,21 @@ class IARCEnv_2(gym.Env):
                 self.state = self.state + [(rmba.state == cfg.ROOMBA_STATE_FORWARD)]
         self.state = self.state + list(self.environment.agent.xy_pos) + list([self.last_rmba])
         self.state = np.asarray(self.state)
+        # self.state = tuple()
+        # for rmba in self.environment.roombas:
+        #     if isinstance(rmba, environment.TargetRoomba):
+        #         self.state = self.state + tuple(rmba.pos)
+        #         self.state = self.state + tuple([rmba.heading])
+        #         self.state = self.state + tuple([rmba.state == cfg.ROOMBA_STATE_FORWARD])
+        # self.state = self.state + tuple(self.environment.agent.xy_pos) + tuple([self.last_rmba])
+        # self.state = np.asarray(self.state)
 
 
         return self.state
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
-        # self.modelEnv.seed(self.np_random)
+        np.random.seed(seed)
         return [seed]
 
 
@@ -174,29 +186,53 @@ class IARCEnv_2(gym.Env):
                 self.state = self.state + [rmba.heading]
                 self.state = self.state + [(rmba.state == cfg.ROOMBA_STATE_FORWARD)]
         self.state = self.state + list(self.environment.agent.xy_pos) +list([self.last_rmba])
+        self.state = np.array(self.state)
+
+        # self.state = tuple()
+        # for rmba in self.environment.roombas:
+        #     if isinstance(rmba, environment.TargetRoomba):
+        #         self.state = self.state + tuple(rmba.pos)
+        #         self.state = self.state + tuple([rmba.heading])
+        #         self.state = self.state + tuple([rmba.state == cfg.ROOMBA_STATE_FORWARD])
+        # self.state = self.state + tuple(self.environment.agent.xy_pos) + tuple([self.last_rmba])
 
         # img_true = self.get_screen()
         # self.modelEnv.step2(np.array(self.state), img_true)
-        if self.environment.time_ms == 25000 and self.test_set is False:
-            self.test_ob = np.array(self.state)
-            self.test_img = self.get_screen2()
-            self.test_set = True
-        if self.environment.time_ms == 45000 and self.test_set2 is False:
-            self.test_ob2 = np.array(self.state)
-            self.test_img2 = self.get_screen2()
-            self.test_set2 = True
-        if np.random.random_integers(1, 5) % 2 == 0:
-            test_ob = self.test_ob
-            test_img = self.test_img
-        else:
-            test_ob = self.test_ob2
-            test_img = self.test_img2
+        # if self.environment.time_ms == 25000 and self.test_set is False:
+        #     self.test_ob = np.array(self.state)
+        #     self.test_img = self.get_screen2()
+        #     self.test_set = True
+        # if self.environment.time_ms == 45000 and self.test_set2 is False:
+        #     self.test_ob2 = np.array(self.state)
+        #     self.test_img2 = self.get_screen2()
+        #     self.test_set2 = True
+        # if np.random.random_integers(1, 5) % 2 == 0:
+        #     test_ob = self.test_ob
+        #     test_img = self.test_img
+        # else:
+        #     test_ob = self.test_ob2
+        #     test_img = self.test_img2
 
-        info = {"time_ms": self.time_elapsed_ms, "rews": rews, "img": self.get_screen2(), "test_ob": test_ob}
+        for i in range(self.num_test_imgs):
+            if self.environment.time_ms == self.test_img_triggerTime[i] and self.test_set[i] is False:
+                self.test_ob[i] = np.array(self.state)
+                self.test_img[i] = self.get_screen2()
+                self.test_set[i] = True
+                self.numTestsActivated += 1
+        if self.numTestsActivated == 1:
+            test_num = 0
+        else:
+            test_num = np.random.random_integers(0, self.numTestsActivated - 1)
+        test_ob = self.test_ob[test_num]
+        test_img = self.test_img[test_num]
+        if np.array_equal(test_img, self.arr):
+            print("uh-oh spagettios")
+
+        info = {"time_ms": self.time_elapsed_ms, "rews": rews, "img": self.get_screen2(), "test_ob": test_ob, "test_img": test_img}
         reward = 0
         for key, rew in rews.items():
             reward += rew
-        return np.array(self.state), reward, done, info
+        return self.state, reward, done, info
 
 
     def get_screen(self):
@@ -232,7 +268,7 @@ class IARCEnv_2(gym.Env):
         arr = np.zeros([img_size, img_size, 1], dtype=np.uint8)
         for rmba in self.environment.roombas:
             if isinstance(rmba, environment.TargetRoomba) and rmba.state is not cfg.ROOMBA_STATE_IDLE:
-                arr[int(rmba.pos[0]/20.0*(img_size - 1)), int(rmba.pos[1]/20.0*(img_size - 1)), :] = 64
+                arr[int(rmba.pos[0]/20.0*(img_size - 1)), int(rmba.pos[1]/20.0*(img_size - 1)), :] = 255
         return arr
 
     def get_example_img(self):

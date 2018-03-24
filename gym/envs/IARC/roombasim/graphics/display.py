@@ -26,7 +26,7 @@ from gym.envs.IARC.roombasim import geometry
 class Display(pyglet.window.Window):
 
     def __init__(self, environment, timescale=1.0, self_update=True):
-        super(Display, self).__init__(700,700)
+        super(Display, self).__init__(700,700, visible=True )
 
         self._timescale = timescale
         self.update_func = (lambda a,b:0)
@@ -101,8 +101,8 @@ class Display(pyglet.window.Window):
                                                 self.environment.target_type)
                 else:
                     Display._draw_target_roomba(r)
-            else:
-                Display._draw_obstacle_roomba(r)
+            # else:
+            #     Display._draw_obstacle_roomba(r)
 
 
     def on_mouse_release(self, x, y, button, modifiers):

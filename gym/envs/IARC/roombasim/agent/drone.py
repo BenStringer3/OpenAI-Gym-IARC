@@ -42,21 +42,21 @@ class Drone(object):
     def __init__(self, pos, yaw, z_pos=0):
         # 2d position vector
         # m
-        self.xy_pos = np.array(pos, dtype=np.float64)
+        self.xy_pos = np.array(pos, dtype=np.float32)
 
         # 2d velocity vector (with respect to origin)
         # m/s
-        self.xy_vel = np.array([0,0], dtype=np.float64)
+        self.xy_vel = np.array([0,0], dtype=np.float32)
 
         # 2d acceleration vector (with respect to current heading)
         # m/s^2
-        self.xy_accel = np.array([0,0], dtype=np.float64)
+        self.xy_accel = np.array([0,0], dtype=np.float32)
 
         # 2d acceleration vector (with respect to origin)
         #
         # this is created by rotating the acceleration vector
         # about the orign by the current yaw
-        self._frame_accel = np.array([0,0], dtype=np.float64)
+        self._frame_accel = np.array([0,0], dtype=np.float32)
 
         # yaw direction
         # rad
@@ -83,7 +83,7 @@ class Drone(object):
         - yaw_vel : a value containing the target yaw angular velocity
         - z_vel : a value containing the target z velocity
         '''
-        self.xy_accel = np.array(xy_accel, dtype=np.float64)
+        self.xy_accel = np.array(xy_accel, dtype=np.float32)
 
         # Make sure acceleration is within drone limits
         if np.linalg.norm(self.xy_accel) > cfg.DRONE_MAX_HORIZ_ACCEL:

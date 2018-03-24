@@ -3,22 +3,12 @@ import gym
 from gym.utils import seeding
 from gym import spaces
 import numpy as np
-
 from gym.envs.IARC.roombasim import environment
-# from gym.envs.IARC.roombasim.graphics import Display
 from gym.envs.IARC.roombasim import config as cfg
 import pyglet
-import queue
-from matplotlib import pyplot as plt
-
+from baselines import logger
 import skimage.measure
 from gym.envs.IARC.IARC_Game_Board_Master import IARCEnv_Master
-from collections import deque
-import tensorflow as tf
-
-# import roomba
-
-NUM_OF_ACTIONS = 5
 
 
 class IARCEnv_3(gym.Env, IARCEnv_Master):
@@ -28,7 +18,7 @@ class IARCEnv_3(gym.Env, IARCEnv_Master):
     }
 
     def __init__(self):
-        self.action_space = spaces.Box(np.array([0.0, 0.0, 0., 0.]), np.array([1., 1., 1., 1.]))
+        self.action_space = spaces.Box(np.array([0.0, 0.0, 0., 0.]), np.array([1., 1., 1., 1.]), dtype=float)
 
         min_obs_template = list([0, 0, 0, False])
         max_obs_template = list([20, 20, math.pi * 2, True])
@@ -38,10 +28,10 @@ class IARCEnv_3(gym.Env, IARCEnv_Master):
             min_obs = min_obs + min_obs_template
             max_obs = max_obs + max_obs_template
 
-        min_obs = min_obs + list([0, 0, 0])
-        max_obs = max_obs + list([20, 20, cfg.MISSION_NUM_TARGETS - 1])
+        min_obs = min_obs + list([0, 0])
+        max_obs = max_obs + list([20, 20])
 
-        self.observation_space = spaces.Box(np.asarray(min_obs), np.asarray(max_obs))
+        self.observation_space = spaces.Box(np.asarray(min_obs), np.asarray(max_obs), dtype=float)
 
         self.init_Master()
         self.reset()
@@ -49,16 +39,13 @@ class IARCEnv_3(gym.Env, IARCEnv_Master):
     def reset(self):
         self.reset_Master()
 
-
-        self.last_rmba = 4
-        self.last_converge = True
         self.state = list()
         for rmba in self.environment.roombas:
             if isinstance(rmba, environment.TargetRoomba):
                 self.state = self.state + rmba.pos
                 self.state = self.state + [rmba.heading]
                 self.state = self.state + [(rmba.state == cfg.ROOMBA_STATE_FORWARD)]
-        self.state = self.state + list(self.environment.agent.xy_pos) + list([self.last_rmba])
+        self.state = self.state + list(self.environment.agent.xy_pos)
         self.state = np.asarray(self.state)
 
         return self.state
@@ -68,9 +55,19 @@ class IARCEnv_3(gym.Env, IARCEnv_Master):
         return [seed]
 
     def step(self, action):
-        rews = {'game': 0.0, 'end': 0.0, 'direction': 0.0}
+        rews = {'game_reward': 0.0, 'end_reward': 0.0, 'direction_reward': 0.0, 'targ_reward': 0.0, 'targ_reward2': 0.0}
         converge = False
-
+        logger.logkv("targPos_x", action[0])
+        logger.logkv("targPos_y", action[1])
+        logger.dumpkvs()
+        if action[0] > 1:
+            rews['targ_reward2'] -= 0.01*(action[0] - 1)
+        elif action[0] < 0:
+            rews['targ_reward2'] += 0.01*action[0]
+        if action[1] > 1:
+            rews['targ_reward2'] -= 0.01*(action[1] - 1)
+        elif action[1] < 0:
+            rews['targ_reward2'] += 0.01*action[1]
         if action.ndim >= 2:
             action = action[0]
             action = np.clip(action, self.action_space.low, self.action_space.high)
@@ -89,9 +86,10 @@ class IARCEnv_3(gym.Env, IARCEnv_Master):
                 rmba_dists[(np.linalg.norm(ac["aav_pos"] - rmba.pos))] = rmba
 
                 # reward for moving in right direction
-                rews["direction"] += self.getDirectionRew(rmba)
+                rews["direction_reward"] += 10*self.getDirectionRew(rmba)
         # reward for targeting rmba
-        rews["targ"] = - 0.00001 * np.power(np.min(list(rmba_dists.keys())), 2)
+        rews["targ_reward"] -= 0.0001 * np.min(list(rmba_dists.keys()))
+        ac["aav_pos"] = rmba_dists[np.min(list(rmba_dists.keys()))].pos
 
         def rmbaInteract():
             if ac["ac_bool"] and np.min(list(rmba_dists.keys())) < 0.35:
@@ -101,7 +99,7 @@ class IARCEnv_3(gym.Env, IARCEnv_Master):
                 else:
                     rmba.collisions['front'] = True
 
-        rews["game"], rews["end"], done = self._updateEnv(ac["aav_pos"], rmbaInteract)
+        rews["game_reward"], rews["end_reward"], done = self._updateEnv(ac["aav_pos"], rmbaInteract)
 
         self.state = list()
         for rmba in self.environment.roombas:
@@ -109,17 +107,23 @@ class IARCEnv_3(gym.Env, IARCEnv_Master):
                 self.state = self.state + rmba.pos
                 self.state = self.state + [rmba.heading]
                 self.state = self.state + [(rmba.state == cfg.ROOMBA_STATE_FORWARD)]
-        self.state = self.state + list(self.environment.agent.xy_pos) + list([self.last_rmba])
+        self.state = self.state + list(self.environment.agent.xy_pos)
 
-
-        info = {"time_ms": self.time_elapsed_ms, "converge": converge, "rews": rews}
+        info = {"time_ms": self.time_elapsed_ms, "rews": rews}
+        #if self.time_elapsed_ms/1000 % 10 == 0:
+         #   info = dict(info, **{"img": self._get_screen()})
         reward = 0
         for key, rew in rews.items():
             reward += rew
         return np.array(self.state), reward, done, info
 
     def _get_screen(self):
-        self.viewer.on_draw_roombas_only()
+        if self.viewer is None:
+            from gym.envs.IARC.roombasim.graphics import Display
+            # from gym.envs.classic_control import rendering
+            self.viewer = Display(self.environment, timescale=1.0, self_update=False)
+            pyglet.app.event_loop.start()
+        self.viewer.on_draw()#_roombas_only()
         buffer = pyglet.image.get_buffer_manager().get_color_buffer()
         image_data = buffer.get_image_data()
         arr = np.fromstring(image_data.data, dtype=np.uint8, sep='')
@@ -130,10 +134,6 @@ class IARCEnv_3(gym.Env, IARCEnv_Master):
         arr1[::, ::, 1] = skimage.measure.block_reduce(arr[::, ::, 1], (4, 4), np.max)
         arr1[::, ::, 2] = skimage.measure.block_reduce(arr[::, ::, 2], (4, 4), np.max)
 
-        # from matplotlib import pyplot as plt
-        # plt.ion()
-        # plt.imshow(arr1)
-        # plt.show()
         return arr1
 
     def _render(self, mode='human', close=False):
@@ -147,24 +147,7 @@ class IARCEnv_3(gym.Env, IARCEnv_Master):
             from gym.envs.IARC.roombasim.graphics import Display
             # from gym.envs.classic_control import rendering
             self.viewer = Display(self.environment, timescale=1.0, self_update=False)
-
-            # def update_func(delta, elapsed):
-            #     self.environment.update(delta, elapsed)
-            #
-            # self.viewer.set_update_func(update_func)
-
-            # pyglet.app.run()
-
-            # pyglet.app.platform_event_loop.start()
             pyglet.app.event_loop.start()
-
-        # timeout = pyglet.app.event_loop.idle()
-        # self.viewer.update(0.1)
-        # self.viewer.on_draw()
-        # self.viewer.
-
-        # dt = self.clock.update_time()
-        # redraw_all = self.clock.call_scheduled_functions(dt)
 
         # Redraw all windows
         self.viewer.update_time_only(0.1)

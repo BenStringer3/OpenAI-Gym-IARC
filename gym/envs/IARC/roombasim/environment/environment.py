@@ -113,13 +113,14 @@ class Environment(object):
                     if Environment._check_roomba_is_facing(rba, self.roombas[j].pos):
                         rba.collisions['front'] = True
 
-            # Perform drone-to-roomba collision detection
-            if self.agent.is_touching_roomba_top(rba):
-                rba.collisions['top'] = True
-
-            if self.agent.is_blocking_roomba(rba):
-                if Environment._check_roomba_is_facing(rba, self.agent.xy_pos):
-                    rba.collisions['front'] = True
+            #TODO: uncomment -Ben
+            # # Perform drone-to-roomba collision detection
+            # if self.agent.is_touching_roomba_top(rba):
+            #     rba.collisions['top'] = True
+            #
+            # if self.agent.is_blocking_roomba(rba):
+            #     if Environment._check_roomba_is_facing(rba, self.agent.xy_pos):
+            #         rba.collisions['front'] = True
 
             # Check if the roomba has left the arena
             (has_left, reward) = Environment._check_bounds(rba)
@@ -132,8 +133,15 @@ class Environment(object):
                 self.score += reward
                 rba.stop()
 
+        # TODO: replace simplified model
         # update the drone
-        self.agent.update(delta, elapsed)
+        # self.agent.update(delta, elapsed)
+        # ben's simplified drone update
+        if np.linalg.norm(self.agent.xy_vel) > cfg.DRONE_MAX_HORIZ_VELOCITY:
+            self.agent.xy_vel *= (cfg.DRONE_MAX_HORIZ_VELOCITY
+                            / np.linalg.norm(self.agent.xy_vel))
+
+        self.agent.xy_pos += self.agent.xy_vel * delta
 
     @staticmethod
     def _check_roomba_collision(ra, rb):
