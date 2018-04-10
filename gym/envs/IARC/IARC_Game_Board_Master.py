@@ -5,6 +5,7 @@ from gym.envs.IARC.roombasim import config as cfg
 
 class IARCEnv_Master(object):
     def init_Master(self):
+        self.numRenderSecs = 2
         self.viewer = None
 
         self.earlyTerminationTime_ms = None
@@ -39,8 +40,8 @@ class IARCEnv_Master(object):
 
     def _updateEnv(self, aav_targPos, actionFn):
         # break_early = False
-        end_rew=0
-        for i in range(10):
+        speed_rew=0
+        for i in range(self.numRenderSecs *10):
             dist2targ = np.linalg.norm(self.environment.agent.xy_pos - aav_targPos)
             if  dist2targ <= 0.35:
                 self.environment.agent.xy_vel = np.array([0.0, 0.0])
@@ -56,12 +57,13 @@ class IARCEnv_Master(object):
             # if break_early:
             #     continue
         game_rew = self.environment.score/100 - self.prev_score
+        speed_rew += game_rew * 0.3 * (10 * 60 * 1000 - self.environment.time_ms) / 1000 / 60 / 10
         self.prev_score = self.environment.score/100
 
         if (self.environment.bad_exits + self.environment.good_exits) >= cfg.MISSION_NUM_TARGETS:
             done = True
-            end_rew =  11 * (
-                        10 * 60 * 1000 - self.environment.time_ms) / 1000 / 60 / 10 * self.environment.good_exits / cfg.MISSION_NUM_TARGETS
+            # end_rew =  11 * (
+            #             10 * 60 * 1000 - self.environment.time_ms) / 1000 / 60 / 10 * self.environment.good_exits / cfg.MISSION_NUM_TARGETS
         elif self.earlyTerminationTime_ms is not None and self.earlyTerminationTime_ms <= self.environment.time_ms:
             done = True
         elif self.environment.time_ms >= 10 * 60 * 1000:
@@ -69,4 +71,4 @@ class IARCEnv_Master(object):
         else:
             done = False
 
-        return game_rew, end_rew, done
+        return game_rew, speed_rew, done

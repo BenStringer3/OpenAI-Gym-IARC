@@ -15,55 +15,37 @@ import skimage.measure
 from collections import deque
 import tensorflow as tf
 # from Redbird_AI.modelEnv import ModelEnv
+from gym.envs.IARC.IARC_Game_Board_Master import IARCEnv_Master
 
-
-class IARCEnv_2(gym.Env):
+class IARCEnv_2(gym.Env, IARCEnv_Master):
     metadata = {
         'render.modes': ['human', 'rgb_array'],
         'video.frames_per_second': 30
     }
 
     def __init__(self):
-
-
-
-
-        self.viewer = None
-
-        self.earlyTerminationTime_ms = None
-        self.render_bool = False
-
+        self.last_rmba = 4
         self.action_space = spaces.MultiDiscrete([cfg.MISSION_NUM_TARGETS, 2, 2])
 
-
-        import gym.envs.IARC.roombasim.pittras.config
-        cfg.load(gym.envs.IARC.roombasim.pittras.config)
-
-        self.environment = environment.Environment()
-        self.environment.reset()
-
         min_obs_template = list([0, 0, 0, False])
-        max_obs_template  = list([20, 20, math.pi*2, True])
+        max_obs_template = list([20, 20, math.pi * 2, True])
         min_obs = list()
         max_obs = list()
-        for i in range(0, cfg.MISSION_NUM_TARGETS): # (self.environment.roombas, start=1):
+        for i in range(0, cfg.MISSION_NUM_TARGETS):  # (self.environment.roombas, start=1):
             min_obs = min_obs + min_obs_template
             max_obs = max_obs + max_obs_template
 
-        min_obs  = min_obs + list([0, 0, 0])
+        min_obs = min_obs + list([0, 0, 0])
         max_obs = max_obs + list([20, 20, cfg.MISSION_NUM_TARGETS - 1])
-        self.last_rmba = 4
 
         self.observation_space = spaces.Box(np.asarray(min_obs), np.asarray(max_obs), dtype=np.float32)
-        self.observation_space = spaces.Tuple(spaces.Box(np.array([0, 0, 0, False]), np.array([20, 20, math.pi*2, True]), dtype=np.float32))
+        # self.observation_space = spaces.Tuple(spaces.Box(np.array([0, 0, 0, False]), np.array([20, 20, math.pi*2, True]), dtype=np.float32))
 
-        # setup agent
-        agent = cfg.AGENT([13, 10], 0)
-        self.environment.agent = agent
 
+        self.init_Master()
         self.reset()
 
-        self.num_test_imgs = 3
+        self.num_test_imgs = 10
         self.numTestsActivated = 0
         #TODO remove temporary test stuf
         self.test_set = [False] * self.num_test_imgs
@@ -84,18 +66,8 @@ class IARCEnv_2(gym.Env):
         for i  in range(self.num_test_imgs):
             self.test_img_triggerTime[i] = 1000 + i*4000
 
-        # self.modelEnv = ModelEnv(self.observation_space, gym.spaces.Box(0, 255, [64, 64])) # TODO remove shape hardcode
-
     def reset(self):
-        self.time_elapsed_ms = 0
-        self.prev_score = 0
-        self.environment.reset()
-
-        # setup agent
-        agent = cfg.AGENT([13, 10], 0)
-
-        self.environment.agent = agent
-        self.environment.agent.z_pos = 2
+        self.reset_Master()
 
         self.state = list()
         for rmba in self.environment.roombas:
@@ -134,50 +106,62 @@ class IARCEnv_2(gym.Env):
             ac = {"rmba_sel": action[0], "ac_bool": action[1], "top_or_front": action[2]}
         aav_targPos = self.environment.roombas[ac["rmba_sel"]].pos
 
+        rmba_dists = dict()
         for rmba in self.environment.roombas:
             if isinstance(rmba, environment.TargetRoomba) and rmba.state is not cfg.ROOMBA_STATE_IDLE:
-                rews["direction_reward"] = (rmba.state == cfg.ROOMBA_STATE_FORWARD) * (
-                        1 / math.pi / 3 * (math.fabs(math.pi - rmba.heading) - math.pi / 2)) / (
-                                  cfg.MISSION_NUM_TARGETS - (
-                                  self.environment.bad_exits + self.environment.good_exits))
-        break_early = False
-        for i in range(10):
-            # ac["aav_pos"] = np.array([20.0, 0.0])
-            dist2targ = np.linalg.norm(self.environment.agent.xy_pos - aav_targPos)
-            if  dist2targ <= 0.35:
-                self.environment.agent.xy_vel = np.array([0.0, 0.0])
-                if ac["ac_bool"]:
-                    # converge = True
-                    # print("hit a roomba")
-                    if ac["top_or_front"]:
-                        self.environment.roombas[ac["rmba_sel"]].collisions['top'] = True
-                    else:
-                        self.environment.roombas[ac["rmba_sel"]].collisions['front'] = True
-                    break_early = True
-            else:
-                ang = math.atan2(aav_targPos[1] - self.environment.agent.xy_pos[1], aav_targPos[0] - self.environment.agent.xy_pos[0])
-                self.environment.agent.xy_vel = np.array([cfg.DRONE_MAX_HORIZ_VELOCITY*np.cos(ang), cfg.DRONE_MAX_HORIZ_VELOCITY*np.sin(ang)])
+                rews["direction_reward"] += self.getDirectionRew(rmba)
+                # rmba_dists[(np.linalg.norm(ac["rmba_sel"] - rmba.pos))] = rmba
+                # rews["direction_reward"] = (rmba.state == cfg.ROOMBA_STATE_FORWARD) * (
+                #         1 / math.pi / 3 * (math.fabs(math.pi - rmba.heading) - math.pi / 2)) / (
+                #                   cfg.MISSION_NUM_TARGETS - (
+                #                   self.environment.bad_exits + self.environment.good_exits))
 
-            self.time_elapsed_ms += 100
-            self.environment.update(0.1, self.time_elapsed_ms)
-            if self.render_bool:
-                self._render()
-            # if break_early:
-            #     continue
-        rews["game_reward"] += self.environment.score/100 - self.prev_score
-        self.prev_score = self.environment.score/100
-        rews["speed_reward"] += rews["game_reward"] * 0.1*(10*60*1000 - self.environment.time_ms)/1000/60/10
+        # for i in range(10):
+        #     # ac["aav_pos"] = np.array([20.0, 0.0])
+        #     dist2targ = np.linalg.norm(self.environment.agent.xy_pos - aav_targPos)
+        #     if  dist2targ <= 0.35:
+        #         self.environment.agent.xy_vel = np.array([0.0, 0.0])
+        #         if ac["ac_bool"]:
+        #             # converge = True
+        #             # print("hit a roomba")
+        #             if ac["top_or_front"]:
+        #                 self.environment.roombas[ac["rmba_sel"]].collisions['top'] = True
+        #             else:
+        #                 self.environment.roombas[ac["rmba_sel"]].collisions['front'] = True
+        #             break_early = True
+        #     else:
+        #         ang = math.atan2(aav_targPos[1] - self.environment.agent.xy_pos[1], aav_targPos[0] - self.environment.agent.xy_pos[0])
+        #         self.environment.agent.xy_vel = np.array([cfg.DRONE_MAX_HORIZ_VELOCITY*np.cos(ang), cfg.DRONE_MAX_HORIZ_VELOCITY*np.sin(ang)])
+        #
+        #     self.time_elapsed_ms += 100
+        #     self.environment.update(0.1, self.time_elapsed_ms)
+        #     if self.render_bool:
+        #         self._render()
+        #     # if break_early:
+        #     #     continue
+        # rews["game_reward"] += self.environment.score/100 - self.prev_score
+        # self.prev_score = self.environment.score/100
 
 
-        done = False
-        if (self.environment.bad_exits + self.environment.good_exits) >= cfg.MISSION_NUM_TARGETS:
-            done = True
-            # rews["end_reward"] += 11 * (10*60*1000 - self.environment.time_ms)/1000/60/10*self.environment.good_exits/cfg.MISSION_NUM_TARGETS
-        if self.environment.time_ms >= 10*60*1000:
-            # self.reset()
-            done = True
-        if self.earlyTerminationTime_ms is not None and self.earlyTerminationTime_ms <= self.environment.time_ms:
-            done = True
+        def rmbaInteract():
+            if ac["ac_bool"]:
+                if ac["top_or_front"]:
+                    self.environment.roombas[ac["rmba_sel"]].collisions['top'] = True
+                else:
+                    self.environment.roombas[ac["rmba_sel"]].collisions['front'] = True
+
+
+        rews["game_reward"], rews["speed_reward"], done = self._updateEnv(self.environment.roombas[ac["rmba_sel"]].pos, rmbaInteract)
+
+        # done = False
+        # if (self.environment.bad_exits + self.environment.good_exits) >= cfg.MISSION_NUM_TARGETS:
+        #     done = True
+        #     # rews["end_reward"] += 11 * (10*60*1000 - self.environment.time_ms)/1000/60/10*self.environment.good_exits/cfg.MISSION_NUM_TARGETS
+        # if self.environment.time_ms >= 10*60*1000:
+        #     # self.reset()
+        #     done = True
+        # if self.earlyTerminationTime_ms is not None and self.earlyTerminationTime_ms <= self.environment.time_ms:
+        #     done = True
 
         self.state = list()
         for rmba in self.environment.roombas:
@@ -185,7 +169,7 @@ class IARCEnv_2(gym.Env):
                 self.state = self.state + rmba.pos
                 self.state = self.state + [rmba.heading]
                 self.state = self.state + [(rmba.state == cfg.ROOMBA_STATE_FORWARD)]
-        self.state = self.state + list(self.environment.agent.xy_pos) +list([self.last_rmba])
+        self.state = self.state + list(self.environment.agent.xy_pos) + list([self.last_rmba])
         self.state = np.array(self.state)
 
         # self.state = tuple()
@@ -215,7 +199,7 @@ class IARCEnv_2(gym.Env):
 
         for i in range(self.num_test_imgs):
             if self.environment.time_ms == self.test_img_triggerTime[i] and self.test_set[i] is False:
-                self.test_ob[i] = np.array(self.state)
+                self.test_ob[i] = self.state
                 self.test_img[i] = self.get_screen2()
                 self.test_set[i] = True
                 self.numTestsActivated += 1
