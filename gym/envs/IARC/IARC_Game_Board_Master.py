@@ -1,4 +1,4 @@
-from gym.envs.IARC.roombasim import environment
+from gym.envs.IARC.roombasim.environment.environment import Environment
 import math
 import numpy as np
 from gym.envs.IARC.roombasim import config as cfg
@@ -14,12 +14,20 @@ class IARCEnv_Master(object):
         import gym.envs.IARC.roombasim.pittras.config
         cfg.load(gym.envs.IARC.roombasim.pittras.config)
 
-        self.environment = environment.Environment()
+        # from gym.envs.IARC.roombasim.environment.roomba_jit import TargetRoomba
+        # theta = 0
+        # target_roomba = TargetRoomba(
+        #     np.array([np.cos(theta) * cfg.MISSION_TARGET_SPAWN_RADIUS + 10,
+        #               np.sin(theta) * cfg.MISSION_TARGET_SPAWN_RADIUS + 10], dtype=np.float32),
+        #     np.float32(theta),
+        #     tag=0
+        # )
+        self.environment = Environment()
         self.environment.reset()
 
         # setup agent
-        agent = cfg.AGENT([13, 10], 0)
-        self.environment.agent = agent
+        # agent = cfg.AGENT([13, 10], 0)
+        # self.environment.agent = agent
 
     def reset_Master(self):
         self.time_elapsed_ms = 0

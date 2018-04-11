@@ -111,7 +111,7 @@ class IARCEnv_4(gym.Env, IARCEnv_Master):
         aav_targPos = self.environment.roombas[ac["rmba_sel"]].pos
 
         if self.environment.roombas[ac["rmba_sel"]].state is cfg.ROOMBA_STATE_IDLE:
-            rews["target_reward"] -= 1*self.numRenderSecs
+            rews["target_reward"] -= 2*self.numRenderSecs
 
         for rmba in self.environment.roombas:
             if isinstance(rmba, environment.TargetRoomba) and rmba.state is not cfg.ROOMBA_STATE_IDLE:

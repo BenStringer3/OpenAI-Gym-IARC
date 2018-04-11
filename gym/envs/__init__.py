@@ -36,6 +36,14 @@ register(
     reward_threshold=21200.0, #12000 + 10*2000
 )
 
+register(
+    id='IARC_Game_Board-v5',
+    entry_point='gym.envs.IARC:IARCEnv_5',
+    max_episode_steps=200, #10 mins * 60 sec/min * 30 frames/sec
+    reward_threshold=21200.0, #12000 + 10*2000
+)
+
+
 # Algorithmic
 # ----------------------------------------
 
