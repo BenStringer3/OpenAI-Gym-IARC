@@ -115,7 +115,7 @@ class IARCEnv_4(gym.Env, IARCEnv_Master):
 
         for rmba in self.environment.roombas:
             if isinstance(rmba, environment.TargetRoomba) and rmba.state is not cfg.ROOMBA_STATE_IDLE:
-                rews["direction_reward"] += 20*self.numRenderSecs*self.getDirectionRew(rmba)
+                rews["direction_reward"] += 0.7*20*self.numRenderSecs*self.getDirectionRew(rmba)
                 # rmba_dists[(np.linalg.norm(ac["aav_pos"] - rmba.pos))] = rmba
 
 

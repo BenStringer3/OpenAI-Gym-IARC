@@ -1,0 +1,62 @@
+
+# location of the Python header files
+
+ 
+
+PYTHON_VERSION = 3.5
+
+PYTHON_INCLUDE = /usr/include/python$(PYTHON_VERSION)
+
+ 
+
+# location of the Boost Python include files and library
+
+ 
+
+BOOST_INC = /usr/local/include/boost_1_66_0
+
+BOOST_LIB = /usr/local/include/boost_1_66_0/stage/lib/
+
+ 
+
+# compile mesh classes
+
+TARGET = env_ext1
+
+CFLAGS = --std=c++11 -fPIC -I$(PYTHON_INCLUDE) -I$(BOOST_INC) -c -Wall -O3
+
+ 
+
+$(TARGET).so: $(TARGET).o Roomba.o TargetRoomba.o Agent.o ObstacleRoomba.o
+
+	g++ -fPIC -shared -Wl,--export-dynamic $(TARGET).o Agent.o TargetRoomba.o Roomba.o ObstacleRoomba.o -L$(BOOST_LIB) -lboost_python3 -lboost_numpy3 -L/usr/lib/python3.5/config-3.5m-x86_64-linux-gnu -lpython3.5 -o $(TARGET).so
+
+ 
+
+$(TARGET).o: $(TARGET).cpp $(TARGET).h TargetRoomba.cpp TargetRoomba.h Roomba.h Roomba.cpp Agent.h Agent.cpp ObstacleRoomba.h ObstacleRoomba.cpp
+
+	g++ $(CFLAGS) $(TARGET).cpp
+
+Roomba.o: Roomba.cpp Roomba.h
+
+	g++ $(CFLAGS) Roomba.cpp
+
+TargetRoomba.o: TargetRoomba.cpp TargetRoomba.h Roomba.h Roomba.cpp
+
+	g++ $(CFLAGS) TargetRoomba.cpp
+
+ObstacleRoomba.o: ObstacleRoomba.cpp ObstacleRoomba.h Roomba.h Roomba.cpp
+
+	g++ $(CFLAGS) ObstacleRoomba.cpp
+
+Agent.o: Agent.cpp Agent.h
+
+	g++ $(CFLAGS) Agent.cpp
+
+
+
+clean:
+
+	@rm *.o *.so
+
+	@echo "Squeaky clean"
